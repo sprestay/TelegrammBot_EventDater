@@ -1,31 +1,70 @@
 const fetch = require('node-fetch');
-const { rejects } = require('assert');
 
-async function event_searcher(by, query, filters) {
+async function event_searcher(city, page = 1) {
     let url = new URL('https://kudago.com/public-api/v1.2/events/');
     url.search = new URLSearchParams({
-        location: filters.city,
-        fields: 'images,title,id,price,description,tags',
-        is_free: filters.free,
-        categories: by,
+        lang: 'ru',
+        location: city,
+        fields: 'id,images,title,price,description,tags',
         actual_since: Date.now() / 1000,
         actual_until: Date.now() / 1000 + 604800, // + неделя
+        page_size: 5,
+        page: page,
     });
 
     const res = await fetch(url).then(res => res.json()).catch(err => console.log("ERROR", err));
-    const data = res.results.filter((item) => item.title.toLowerCase().indexOf(query.toLowerCase()) != -1);
+    // const data = res.results.filter((item) => item.title.toLowerCase().indexOf(query.toLowerCase()) != -1);
 
-    return data;
+    return res;
 }
 
-function categories_searcher() {
-    let url = new URL('https://kudago.com/public-api/v1.2/event-categories/?lang=ru');
-    fetch(url).then((response) => response.json()).then((res) => {
-        console.log(res);
-    }).catch((err) => console.log("ERROR", err));
+async function cinema_searcher(city, page = 1) {
+    let url = new URL('https://kudago.com/public-api/v1.2/movies/');
+    url.search = new URLSearchParams({
+        lang: 'ru',
+        location: city,
+        fields: 'id,title,description,genres,year,stars,director,imdb_url,images',
+        actual_since: Date.now() / 1000,
+        actual_until: Date.now() / 1000 + 604800, // + неделя
+        page_size: 5,
+        page: page,
+    });
 
+    const res = await fetch(url).then(res => res.json()).catch(err => console.log("ERROR", err));
+
+    return res;
 }
 
+async function walk_searcher(city, page = 1) {
+    let url = new URL('https://kudago.com/public-api/v1.4/places/');
+    url.search = new URLSearchParams({
+        lang: 'ru',
+        location: city,
+        fields: 'id,title,short_title,address,description,foreign_url,images,phone,tags',
+        categories: 'sights,prirodnyj-zapovednik,photo-places,park,palace,homesteads,fountain,dogs,attractions,animal-shelters',
+        page_size: 5,
+        page: page,
+    });
 
-// console.log(event_searcher(by='', query='илон', filters={city: 'msk', free: false}));
-module.exports = {event_searcher, categories_searcher}
+    const res = await fetch(url).then(res => res.json()).catch(err => console.log("ERROR", err));
+
+    return res;
+}
+
+async function restaurants_search(city, page = 1) {
+    let url = new URL('https://kudago.com/public-api/v1.4/places/');
+    url.search = new URLSearchParams({
+        lang: 'ru',
+        location: city,
+        fields: 'id,title,short_title,address,description,foreign_url,images,phone,tags',
+        categories: 'restaurants,bar,anticafe,brewery',
+        page_size: 5,
+        page: page,
+    });
+
+    const res = await fetch(url).then(res => res.json()).catch(err => console.log("ERROR", err));
+
+    return res;
+}
+
+module.exports = {event_searcher, cinema_searcher, walk_searcher, restaurants_search}

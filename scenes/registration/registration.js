@@ -13,7 +13,8 @@ const GenderKeyboard =
 function registration(stage) {
   const register = new WizardScene(
     "registration",
-    // Имя
+    // Имя  МОЖНО УБРАТЬ, и заменить   ctx.chat.first_name
+    
     async (ctx) => {
       ctx.reply("Как тебя зовут?");
       return ctx.wizard.next();
@@ -67,19 +68,19 @@ function registration(stage) {
     // Фото
 
     async (ctx) => {
-      const id = ctx.message.photo[0].file_id;
-      await ctx.telegram.getFileLink(id).then(url => {
-        axios({url, responseType: 'stream'}).then(response => {
-          return new Promise((res, rej) => {
-            response.data.pipe(fs.createWriteStream('./' + id + '.jpg'))
-            .on('finish', () => {
-              console.log("Successfully saved");
-              ctx.session.user.photo = id;
-            })
-            .on('error', error => console.log("ERROR WHILE SAVING", error));
-          });
-        });
-    });
+    //   const id = ctx.message.photo[0].file_id;
+    //   await ctx.telegram.getFileLink(id).then(url => {
+    //     axios({url, responseType: 'stream'}).then(response => {
+    //       return new Promise((res, rej) => {
+    //         response.data.pipe(fs.createWriteStream('./' + id + '.jpg'))
+    //         .on('finish', () => {
+    //           console.log("Successfully saved");
+    //           ctx.session.user.photo = id;
+    //         })
+    //         .on('error', error => console.log("ERROR WHILE SAVING", error));
+    //       });
+    //     });
+    // });
     // Дописать условий и проверок
     await ctx.reply("Мы сделали это! Регистрация окончена");
     await ctx.reply("Теперь введи варианты, куда ты хочешь сходить,\nа я постараюсь найти подходящие события")
