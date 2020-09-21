@@ -62,32 +62,25 @@ function event_main(stage) {
 // Попробуй добавить возможность входа по условию. Если получиться - делай декоратор
 
     // Ивенты
-    eventMainMenu.hears('🎉 События', ctx => {
-        function sub_func(callback) {
-            searchers.event_searcher(city='msk', page=events_page)
-            .then((res) => res.results
-                .filter(item => item.tags.indexOf('детям') == -1)
-                    .map(item => {
-                        let fav = base_favourite_button(item.id.toString() + '_event');
-                        fav.caption = display_event(item);
-                        fav.parse_mode = 'HTML';
-                        ctx.replyWithPhoto({
-                            url: item.images[0].image
-                        },fav).then(res => msgs.push(res.message_id)).then((res => callback(ctx)));
-            }));
-        }
+    eventMainMenu.hears('🎉 События', async ctx => {
+        const data = await searchers.event_searcher(city='msk', page=events_page)
+            .then(res => res.results
+            .filter(item => item.tags.indexOf('детям') == -1)
+            .map(item => {
+                let fav = base_favourite_button(item.id.toString() + '_event');
+                fav.caption = display_event(item);
+                fav.parse_mode = 'HTML';
+                return ctx.replyWithPhoto({
+                    url: item.images[0].image
+                },fav).then(res => msgs.push(res.message_id));
+            })
+        );
 
-        function get_link(ctx) {
-            ctx.reply("вот оно!", Extra.inReplyTo(msgs[0]))
-        }
-        sub_func(get_link);
-
+        Promise.all(data).then(() => {
+            ctx.reply('В начало!', Extra.inReplyTo(msgs[0])
+                                        .markup(Markup.inlineKeyboard([Markup.callbackButton('Следующая страница ➡', 'next')])));
+        });
     });
-
-    //Удалить
-    eventMainMenu.hears('show', ctx => {
-        ctx.reply(msgs);
-    })
 
     // Добавление в избранное
     eventMainMenu.action(new RegExp('^add_[0-9]+_(event|cinema|place)$'), ctx => {
