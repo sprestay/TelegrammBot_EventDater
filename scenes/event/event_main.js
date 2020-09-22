@@ -10,12 +10,18 @@ const make_first_char_capital = str => {
     return str[0].toUpperCase() + str.slice(1);
 }
 
+let cinema_page = 1;
+let events_page = 1;
+let restaurants = 1;
+let walk_page = 1;
+let msgs = [];
+
 // функции для рендера ивента
 // slice на description от того, что KudaGo возвращает ответ с тэгами <p></p>
 const display_event = event => {
     return `
     <strong>${make_first_char_capital(event.title)}</strong>
-    <em>${event.description.slice(3,).slice(0, -4)}</em>
+    <em>${event.description.replace(new RegExp('(<p>|<\/p>)', 'g'), '')}</em>
     -----------------------------------
     Тэги:
     ${event.tags.map(item => `<b><i>${make_first_char_capital(item)}</i></b>`).join(', ')}
@@ -24,8 +30,8 @@ const display_event = event => {
 }
 
 // Базовая отрисовка inlineKeyboard.
-const base_favourite_button = id => Extra.markup(Markup.inlineKeyboard([
-    Markup.callbackButton('♡', 'add_' + id.toString())
+const base_favourite_button = (id, is_favourite) => Extra.markup(Markup.inlineKeyboard([
+    is_favourite ? Markup.callbackButton('❤', 'del_' + id.toString()) : Markup.callbackButton('♡', 'add_' + id.toString())
 ]));
 
 //Кнопка удаления из избранного
@@ -34,17 +40,54 @@ const delete_to_favourite_button = id => [[Markup.callbackButton('❤', 'del_' +
 //Кнопка добавления в избранное
 const add_to_favourite_button = id => [[Markup.callbackButton('♡', 'add_' + id.toString())]];
 
+// Поиск ивента
+const search_for_events = (ctx, page) => {
+    return (
+        searchers.event_searcher(city='msk', page=page)
+        .then(res => res.results
+        .filter(item => item.tags.indexOf('детям') == -1)
+        .map(item => {
+            //Проверим, есть ли у нас этот ивент, или нет
+            let is_favourite = false;
+            if (ctx.session.events)
+                is_favourite = ctx.session.events.event.indexOf(item.id) == -1 ? false : true;
+            //Передадим флаг проверки в функцию, для отрисовки меню
+            let fav = base_favourite_button(item.id.toString() + '_event', is_favourite);
+            fav.caption = display_event(item);
+            fav.parse_mode = 'HTML';
+            return ctx.replyWithPhoto({
+                url: item.images[0].image
+            },fav).then(res => msgs.push(res.message_id));
+        }))
+    )
+}
 
+// Сменить страницу
+const change_page = async (ctx, query_func, next) => {
+    // Удаляем предыдущие сообщения
+    for (let msg of msgs)
+        ctx.deleteMessage(msg);
+    // Увеличиваем счетчик страниц
+    next ? events_page++ : events_page--;
+    msgs = [];
+    // Новый запрос - новая отрисовка
+    let data = await query_func(ctx, events_page);
+
+    Promise.all(data).then(() => {
+        ctx.reply('В начало!', Extra.inReplyTo(msgs[0])
+                                    .markup(Markup.inlineKeyboard([
+                                        Markup.callbackButton('⬅ Предыдущая страница', 'back'),
+                                        Markup.callbackButton('Следующая страница ➡', 'next'),
+                                    ]))).then(res => msgs.push(res.message_id));
+    });
+}
+
+// Фукнция на экспорт
+// Обработчики событий на сцене
 function event_main(stage) {
 // Поисковик (главное меню)
     const eventMainMenu = new Scene('eventMainMenu');
     stage.register(eventMainMenu);
-
-    let cinema_page = 1;
-    let events_page = 1;
-    let restaurants = 1;
-    let walk_page = 1;
-    let msgs = [];
 
     eventMainMenu.start((ctx) => {
         ctx.reply('Раздел "Мероприятия"', Markup.keyboard([
@@ -63,23 +106,31 @@ function event_main(stage) {
 
     // Ивенты
     eventMainMenu.hears('🎉 События', async ctx => {
-        const data = await searchers.event_searcher(city='msk', page=events_page)
-            .then(res => res.results
-            .filter(item => item.tags.indexOf('детям') == -1)
-            .map(item => {
-                let fav = base_favourite_button(item.id.toString() + '_event');
-                fav.caption = display_event(item);
-                fav.parse_mode = 'HTML';
-                return ctx.replyWithPhoto({
-                    url: item.images[0].image
-                },fav).then(res => msgs.push(res.message_id));
-            })
-        );
+        let data = await search_for_events(ctx, events_page);
 
         Promise.all(data).then(() => {
-            ctx.reply('В начало!', Extra.inReplyTo(msgs[0])
-                                        .markup(Markup.inlineKeyboard([Markup.callbackButton('Следующая страница ➡', 'next')])));
+            ctx.reply('В начало!', events_page > 1 ?
+                                        Extra.inReplyTo(msgs[0])
+                                        .markup(Markup.inlineKeyboard([
+                                            Markup.callbackButton('⬅ Предыдущая страница', 'back'),
+                                            Markup.callbackButton('Следующая страница ➡', 'next'),
+                                        ])) 
+                                        :
+                                        Extra.inReplyTo(msgs[0])
+                                        .markup(Markup.inlineKeyboard([
+                                            Markup.callbackButton('Следующая страница ➡', 'next')
+                                        ]))
+                                        ).then(res => msgs.push(res.message_id));
         });
+    });
+
+    //Навигация по страницам
+    eventMainMenu.action('next', ctx => {
+        change_page(ctx, search_for_events, true);
+    });
+
+    eventMainMenu.action('back', async ctx => {
+        change_page(ctx, search_for_events, false);
     });
 
     // Добавление в избранное
