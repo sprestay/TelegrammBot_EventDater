@@ -3,6 +3,8 @@ const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 const Scene = require('telegraf/scenes/base');
 const searchers = require('../../search/event_search');
+const { cinema_searcher } = require("../../search/event_search");
+const { count } = require("console");
 
 // Сделать первый символ строки заглавным
 const make_first_char_capital = str => {
@@ -18,15 +20,27 @@ let msgs = [];
 
 // функции для рендера ивента
 // slice на description от того, что KudaGo возвращает ответ с тэгами <p></p>
-const display_event = event => {
-    return `
-    <strong>${make_first_char_capital(event.title)}</strong>
-    <em>${event.description.replace(new RegExp('(<p>|<\/p>)', 'g'), '')}</em>
-    -----------------------------------
-    Тэги:
-    ${event.tags.map(item => `<b><i>${make_first_char_capital(item)}</i></b>`).join(', ')}
-    -----------------------------------
-    `
+const display_event = (event, type) => {
+    if (type != 'cinema')
+        return `
+        <strong>${make_first_char_capital(event.title)}</strong>
+        <em>${event.description.replace(new RegExp('(<p>|<\/p>)', 'g'), '')}</em>
+        -----------------------------------
+        Тэги:
+        ${event.tags.map(item => `<b><i>${make_first_char_capital(item)}</i></b>`).join(', ')}
+        -----------------------------------
+        `
+    else if (type == 'cinema')
+        return `
+        <strong>${event.title}</strong>
+        <em>${event.year}</em>
+        Режиссер: ${event.director}
+        -----------------------------------
+        Жанры:
+        ${event.genres.map(item => `<b><i>${make_first_char_capital(item.name)}</i></b>`).join(', ')}
+        -----------------------------------
+        Подробнее: <a href="${event.imdb_url}">${event.title}</a>
+        `
 }
 
 // Базовая отрисовка inlineKeyboard.
@@ -41,9 +55,9 @@ const delete_to_favourite_button = id => [[Markup.callbackButton('❤', 'del_' +
 const add_to_favourite_button = id => [[Markup.callbackButton('♡', 'add_' + id.toString())]];
 
 // Поиск ивента
-const search_for_events = (ctx, page) => {
+const search_for_events = (ctx) => {
     return (
-        searchers.event_searcher(city='msk', page=page)
+        searchers.event_searcher(city='msk', page=events_page)
         .then(res => res.results
         .filter(item => item.tags.indexOf('детям') == -1)
         .map(item => {
@@ -53,7 +67,7 @@ const search_for_events = (ctx, page) => {
                 is_favourite = ctx.session.events.event.indexOf(item.id) == -1 ? false : true;
             //Передадим флаг проверки в функцию, для отрисовки меню
             let fav = base_favourite_button(item.id.toString() + '_event', is_favourite);
-            fav.caption = display_event(item);
+            fav.caption = display_event(item, 'event');
             fav.parse_mode = 'HTML';
             return ctx.replyWithPhoto({
                 url: item.images[0].image
@@ -62,23 +76,123 @@ const search_for_events = (ctx, page) => {
     )
 }
 
+// Поиск фильма
+const search_for_movies = (ctx) => {
+    return (
+        searchers.cinema_searcher(city='msk', page=cinema_page)
+        .then(res => res.results
+        .map(item => {
+            let is_favourite = false;
+            if (ctx.session.events)
+                is_favourite = ctx.session.events.cinema.indexOf(item.id) == -1 ? false : true;
+            let fav = base_favourite_button(item.id.toString() + '_cinema', is_favourite);
+            fav.caption = display_event(item, 'cinema');
+            fav.parse_mode = 'HTML';
+            return ctx.replyWithPhoto({
+                url: item.images[0].image
+            }, fav).then(res => msgs.push(res.message_id));
+        }))
+    )
+}
+
+// Поиск прогулок
+const search_for_walk = (ctx) => {
+    return (
+        searchers.walk_searcher(city='msk', page=walk_page)
+        .then(res => res.results
+        .map(item => {
+            let is_favourite = false;
+            if (ctx.session.events)
+                is_favourite = ctx.session.events.place.indexOf(item.id) == -1 ? false : true;
+            let fav = base_favourite_button(item.id.toString() + '_placew', is_favourite);
+            fav.caption = display_event(item, 'placew');
+            fav.parse_mode = 'HTML';
+            return ctx.replyWithPhoto({
+                url: item.images[0].image
+            }, fav).then(res => msgs.push(res.message_id));
+        }))
+    )
+}
+
+const search_for_restaurants = (ctx) => {
+    return (
+        searchers.restaurants_search(city='msk', page=restaurants)
+        .then(res => res.results
+        .map(item => {
+            let is_favourite = false;
+            if (ctx.session.events)
+                is_favourite = ctx.session.events.place.indexOf(item.id) == -1 ? false : true;
+            let fav = base_favourite_button(item.id.toString() + '_placer', is_favourite);
+            fav.caption = display_event(item, 'placer');
+            fav.parse_mode = 'HTML';
+            return ctx.replyWithPhoto({
+                url: item.images[0].image
+            }, fav).then(res => msgs.push(res.message_id));
+        }))
+    )
+}
+
 // Сменить страницу
-const change_page = async (ctx, query_func, next) => {
+const change_page = async (ctx, query_func, next, type) => {
     // Удаляем предыдущие сообщения
     for (let msg of msgs)
         ctx.deleteMessage(msg);
     // Увеличиваем счетчик страниц
-    next ? events_page++ : events_page--;
+    switch(type) {
+        case('event'):
+            next ? events_page++ : events_page--;
+            break;
+        case('cinema'):
+            next ? cinema_page++ : events_page--;
+            break;
+        case('placer'):
+            next ? restaurants++ : restaurants--;
+            break;
+        case('placew'):
+            next ? walk_page++ : walk_page--;
+            break;
+        default:
+            return;
+    }
     msgs = [];
     // Новый запрос - новая отрисовка
-    let data = await query_func(ctx, events_page);
+    let data = await query_func(ctx);
+    navigation_buttons(data, ctx, type);
+}
+
+//Навигационные кнопки
+const navigation_buttons = (data, ctx, type) => {
+
+    let counter = -1;
+
+    switch (type) {
+        case ('event'):
+            counter = events_page;
+            break;
+        case ('cinema'):
+            counter = cinema_page;
+            break;
+        case ('placew'):
+            counter = walk_page;
+            break;
+        case ('placer'):
+            counter = restaurants;
+            break;
+    }
 
     Promise.all(data).then(() => {
-        ctx.reply('В начало!', Extra.inReplyTo(msgs[0])
+        ctx.reply('В начало!', counter > 1 ?
+                                    Extra.inReplyTo(msgs[0])
                                     .markup(Markup.inlineKeyboard([
-                                        Markup.callbackButton('⬅ Предыдущая страница', 'back'),
-                                        Markup.callbackButton('Следующая страница ➡', 'next'),
-                                    ]))).then(res => msgs.push(res.message_id));
+                                        Markup.callbackButton('⬅ Предыдущая страница', 'back_' + type),
+                                        Markup.callbackButton('Следующая страница ➡', 'next_' + type),
+                                    ])) 
+                                    :
+                                    Extra.inReplyTo(msgs[0])
+                                    .markup(Markup.inlineKeyboard([
+                                        Markup.callbackButton('Следующая страница ➡', 'next_' + type)
+                                    ]))
+                                    ).then(res => msgs.push(res.message_id));
     });
 }
 
@@ -98,43 +212,83 @@ function event_main(stage) {
     });
 
     // Кино
-    eventMainMenu.hears('🎬 Кино', (ctx) => {
-        // ctx.replyWithPhoto({url: "https://clck.ru/QwUFM"}, extra)
-        // ctx.reply("123");
+    eventMainMenu.hears('🎬 Кино', async ctx => {
+        for (let msg of msgs)
+            ctx.deleteMessage(msg);
+        msgs = [];
+        let data = await search_for_movies(ctx);
+        navigation_buttons(data, ctx, 'cinema');
     });
-// Попробуй добавить возможность входа по условию. Если получиться - делай декоратор
 
     // Ивенты
     eventMainMenu.hears('🎉 События', async ctx => {
-        let data = await search_for_events(ctx, events_page);
-
-        Promise.all(data).then(() => {
-            ctx.reply('В начало!', events_page > 1 ?
-                                        Extra.inReplyTo(msgs[0])
-                                        .markup(Markup.inlineKeyboard([
-                                            Markup.callbackButton('⬅ Предыдущая страница', 'back'),
-                                            Markup.callbackButton('Следующая страница ➡', 'next'),
-                                        ])) 
-                                        :
-                                        Extra.inReplyTo(msgs[0])
-                                        .markup(Markup.inlineKeyboard([
-                                            Markup.callbackButton('Следующая страница ➡', 'next')
-                                        ]))
-                                        ).then(res => msgs.push(res.message_id));
-        });
+        for (let msg of msgs)
+            ctx.deleteMessage(msg);
+        msgs = [];
+        let data = await search_for_events(ctx);
+        navigation_buttons(data, ctx, 'event');
     });
+
+    // Прогулки
+    eventMainMenu.hears('👫 Прогулки', async ctx => {
+        for (let msg of msgs)
+            ctx.deleteMessage(msg);
+        msgs = [];
+        let data = await search_for_walk(ctx);
+        navigation_buttons(data, ctx, 'placew');
+    });
+
+    eventMainMenu.hears('🍷 Рестораны', async ctx => {
+        for (let msg of msgs)
+            ctx.deleteMessage(msg);
+        msgs = [];
+        let data = await search_for_restaurants(ctx);
+        navigation_buttons(data, ctx, 'placer');
+    })
 
     //Навигация по страницам
-    eventMainMenu.action('next', ctx => {
-        change_page(ctx, search_for_events, true);
+    eventMainMenu.action(new RegExp('^next_(event|cinema|placew|placer)$'), ctx => {
+        let type = ctx.match[0].split('_')[1];
+        switch(type) {
+            case ('event'):
+                change_page(ctx, search_for_events, true, type);
+                break;
+            case ('cinema'):
+                change_page(ctx, search_for_movies, true, type);
+                break;
+            case ('placew'):
+                change_page(ctx, search_for_walk, true, type);
+                break;
+            case ('placer'):
+                change_page(ctx, search_for_restaurants, true, type);
+                break;
+            default:
+                return;
+        }
     });
 
-    eventMainMenu.action('back', async ctx => {
-        change_page(ctx, search_for_events, false);
+    eventMainMenu.action(new RegExp('^back_(event|cinema|placew|placer)$'), async ctx => {
+        let type = ctx.match[0].split('_')[1];
+        switch(type) {
+            case ('event'):
+                change_page(ctx, search_for_events, false, type);
+                break;
+            case ('cinema'):
+                change_page(ctx, search_for_movies, false, type);
+                break;
+            case ('placew'):
+                change_page(ctx, search_for_walk, false, type);
+                break;
+            case ('placer'):
+                change_page(ctx, search_for_restaurants, false, type);
+                break;
+            default:
+                return;
+        }
     });
 
     // Добавление в избранное
-    eventMainMenu.action(new RegExp('^add_[0-9]+_(event|cinema|place)$'), ctx => {
+    eventMainMenu.action(new RegExp('^add_[0-9]+_(event|cinema|placew|placer)$'), ctx => {
         let id = ctx.match[0].split('_')[1]; // чистый id
         let type = ctx.match[0].split('_')[2]; // тип (ивент\кино\место)
         // Инициализируем хранилище
@@ -152,7 +306,8 @@ function event_main(stage) {
             case ('cinema'):
                 ctx.session.events.cinema.push(Number(id));
                 break;
-            case ('place'):
+            case ('placer'):
+            case ('placew'):
                 ctx.session.events.place.push(Number(id));
                 break;
             default:
@@ -165,7 +320,7 @@ function event_main(stage) {
     });
 
     // Удаление из избранного
-    eventMainMenu.action(new RegExp('^del_[0-9]+_(event|cinema|place)$'), ctx => {
+    eventMainMenu.action(new RegExp('^del_[0-9]+_(event|cinema|placew|placer)$'), ctx => {
         let id = ctx.match[0].split('_')[1]; // чистый id
         let type = ctx.match[0].split('_')[2]; // тип (ивент\кино\место)
         // Если хранилища нет - валим
@@ -179,7 +334,8 @@ function event_main(stage) {
             case ('cinema'):
                 ctx.session.events.cinema = ctx.session.events.cinema.filter((item) => item != Number(id));
                 break;
-            case ('place'):
+            case ('placer'):
+            case ('placew'):
                 ctx.session.events.place = ctx.session.events.place.filter((item) => item != Number(id));
                 break;
             default:
@@ -189,11 +345,7 @@ function event_main(stage) {
         ctx.editMessageReplyMarkup({
             inline_keyboard: add_to_favourite_button(id + '_' + type)
         });
-    })
-
-
-
-
+    });
 
     return {
         eventMainMenu: eventMainMenu,
@@ -218,13 +370,4 @@ function event_main(stage) {
     Благотворительность - social-activity
 */
 
-// bot.command('foo', (ctx) => {
-    // const extra = Extra.markup(Markup.inlineKeyboard([
-    //   Markup.urlButton('❤️', 'http://telegraf.js.org')
-    // ]))
-    // extra.caption = 'Caption text here'
-//     return ctx.replyWithPhoto('http://lorempixel.com/400/200/cats/', extra)
-//   })
-
-// ctx.replyWithPhoto({ url: <pic-url> }, { caption: "cat photo" })
 module.exports = {event_main}

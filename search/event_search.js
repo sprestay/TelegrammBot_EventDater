@@ -13,7 +13,6 @@ async function event_searcher(city, page = 1) {
     });
 
     const res = await fetch(url).then(res => res.json()).catch(err => console.log("ERROR", err));
-    // const data = res.results.filter((item) => item.title.toLowerCase().indexOf(query.toLowerCase()) != -1);
 
     return res;
 }
