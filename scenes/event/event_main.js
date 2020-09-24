@@ -1,10 +1,8 @@
-const WizardScene = require("telegraf/scenes/wizard");
 const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 const Scene = require('telegraf/scenes/base');
 const searchers = require('../../search/event_search');
-const { cinema_searcher } = require("../../search/event_search");
-const { count } = require("console");
+const User = require('../../models/User');
 
 // Сделать первый символ строки заглавным
 const make_first_char_capital = str => {
@@ -203,13 +201,9 @@ function event_main(stage) {
     const eventMainMenu = new Scene('eventMainMenu');
     stage.register(eventMainMenu);
 
-    eventMainMenu.start((ctx) => {
-        ctx.reply('Раздел "Мероприятия"', Markup.keyboard([
-            ['🎬 Кино','🎉 События'],
-            ['🍷 Рестораны', '👫 Прогулки'],
-        ]).resize().extra()
-        )
-    });
+    // eventMainMenu.start((ctx) => {
+    //     ctx.reply('Раздел "Мероприятия"', )
+    // });
 
     // Кино
     eventMainMenu.hears('🎬 Кино', async ctx => {
@@ -297,6 +291,7 @@ function event_main(stage) {
                 event: [],
                 cinema: [],
                 place: [],
+                total: 0,
             }
 
         switch(type) {
@@ -313,6 +308,7 @@ function event_main(stage) {
             default:
                 return;
         }
+        ctx.session.events.total++; //Суммарное число ивентов на юзере. Используем, чтобы проще проверять требования для меню
 
         ctx.editMessageReplyMarkup({
             inline_keyboard: delete_to_favourite_button(id + '_' + type)
@@ -341,6 +337,8 @@ function event_main(stage) {
             default:
                 return;
         }
+
+        ctx.session.events.total--; // Уменьшили общий счетчик ивентов
 
         ctx.editMessageReplyMarkup({
             inline_keyboard: add_to_favourite_button(id + '_' + type)

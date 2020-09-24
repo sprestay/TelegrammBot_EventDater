@@ -2,18 +2,35 @@ const WizardScene = require("telegraf/scenes/wizard");
 const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 const axios = require('axios');
-const fs = require('fs');
+const AWS = require('aws-sdk');
+const stream = require('stream');
+const User = require('../../models/User');
+const menuModule = require('../menu');
+
+
+const s3 = new AWS.S3({params: {Bucket: 'event-dater-tg'}});
 
 const GenderKeyboard = 
-  Markup.keyboard(['Мужской', 'Женский'], {
-    columns: parseInt(2)
-  }).oneTime().resize().extra();
+  Extra.markup(Markup.inlineKeyboard([
+    Markup.callbackButton('🚹 Мужской', 'male'),
+    Markup.callbackButton('🚺 Женский', 'female')
+  ]));
+
+// Функция для загрузки на AWS S3
+const uploadFromStream = (s3, key) => {
+    var pass = new stream.PassThrough();
+  
+    var params = {Key: key.toString(), Body: pass};
+    s3.upload(params, function(err, data) {
+      console.log(err, data);
+    });
+    return pass;
+  }
 
 
 function registration(stage) {
   const register = new WizardScene(
     "registration",
-    // Имя  МОЖНО УБРАТЬ, и заменить   ctx.chat.first_name
     
     async (ctx) => {
       ctx.reply("Как тебя зовут?");
@@ -22,10 +39,11 @@ function registration(stage) {
     async (ctx) => {
       if (ctx.message.text && ctx.message.text.length > 1 && new RegExp('[A-я]+', 'gi').test(ctx.message.text)) {
         ctx.session.user = {
+            id: ctx.message.from.id,
             name: null,
             gender: null,
             age: null,
-            photo: null,
+            about: null,
         }
         ctx.session.user.name = ctx.message.text;
         await ctx.reply("Приятно познакомиться, " + ctx.session.user.name);
@@ -38,11 +56,13 @@ function registration(stage) {
   // Пол
 
   (ctx) => {
-    if (['female', 'male', 'м', 'ж', 'муж', 'жен', "женск", "мужской", "женский"].indexOf(ctx.message.text.trim().toLowerCase()) != -1) {
-      if (['male', 'м', "муж", "мужской"].indexOf(ctx.message.text.trim().toLowerCase()) != -1)
-          ctx.session.user.gender = 'male';
-      else ctx.session.user.gender = 'female';
-      ctx.reply("Сколько тебе лет?", Extra.markup(Markup.removeKeyboard()));
+    let callback = ctx.update.callback_query ? ctx.update.callback_query.data : ctx.message.text.trim().toLowerCase();
+
+    if (['female', 'male', 'м', 'ж', 'муж', 'жен', "женск", "мужской", "женский"].indexOf(callback) != -1) {
+      if (['male', 'м', "муж", "мужской"].indexOf(callback) != -1)
+          ctx.session.user.gender = 1;
+      else ctx.session.user.gender = 0;
+      ctx.reply("Сколько тебе лет?");
       return ctx.wizard.next();
     } else {
         ctx.reply("Не понял тебя.\nЛучше просто нажми на кнопку)")
@@ -55,42 +75,67 @@ function registration(stage) {
       if (Number.isInteger(age) && age >= 18 && age <= 70) {
           await ctx.reply(age.toString() + '..., так и запишем');
           ctx.session.user.age = age;
-          await ctx.reply('Последний шаг!\nСкинь фотку)');
+
+          //Проверка, есть ли фото профиля?
+          let photo = await ctx.telegram.getUserProfilePhotos(ctx.message.from.id).then(res => res.photos[0]);
+          if (photo.length)
+            await ctx.reply('Давай загрузим фото', Extra.markup(Markup.inlineKeyboard([Markup.callbackButton("🎥 Использовать фото профиля", 'profile')])));
+          else
+            await ctx.reply('Давай загрузим фото');
+
           return ctx.wizard.next();
       } else if (!Number.isInteger(age))
-          ctx.reply("Что-то ты не то ввел" + сtx.session.user.gender == 'male' ? '' : 'a');
+          ctx.reply("Что-то ты не то ввел" + сtx.session.user.gender ? '' : 'a');
       else {
           ctx.reply("Общаюсь только с теми, кому от 18 до 70 лет.\nПрости, такие правила)");
           ctx.session.user = null;
+          await ctx.scene.leave('registration');
       }
     },
     
     // Фото
 
     async (ctx) => {
-    //   const id = ctx.message.photo[0].file_id;
-    //   await ctx.telegram.getFileLink(id).then(url => {
-    //     axios({url, responseType: 'stream'}).then(response => {
-    //       return new Promise((res, rej) => {
-    //         response.data.pipe(fs.createWriteStream('./' + id + '.jpg'))
-    //         .on('finish', () => {
-    //           console.log("Successfully saved");
-    //           ctx.session.user.photo = id;
-    //         })
-    //         .on('error', error => console.log("ERROR WHILE SAVING", error));
-    //       });
-    //     });
-    // });
+      let url = null;
+      if (ctx.update.callback_query && ctx.update.callback_query.data == 'profile') {
+          await ctx.telegram.getUserProfilePhotos(ctx.update.callback_query.from.id) // Как это отработает, если пользователь без фото?
+            .then(res => res.photos[0][0].file_id)
+            .then(id => ctx.telegram.getFileLink(id).then(src => url = src));
+      } else if (ctx.message.photo) {
+          await ctx.telegram.getFileLink(ctx.message.photo[0].file_id)
+            .then(src => url = src);
+      } else {
+          ctx.reply("Неверный тип файла.");
+          return;
+      }
+      // Сделать индикатор загрузки
+
+      axios({url, responseType: 'stream'}).then(response => {
+        return new Promise((res, rej) => {
+          response.data.pipe(uploadFromStream(s3, ctx.session.user.id))
+          .on('finish', () => {console.log("Successfully saved")})
+          .on('error', error => console.log("ERROR WHILE SAVING", error));
+        });
+      });
     // Дописать условий и проверок
-    await ctx.reply("Мы сделали это! Регистрация окончена");
-    await ctx.reply("Теперь введи варианты, куда ты хочешь сходить,\nа я постараюсь найти подходящие события")
+    ctx.reply("Фото получили.\nРасскажи немного о себе", Extra.markup(Markup.keyboard([Markup.button('🙅 Пропустить 🙅')])))
+    return ctx.wizard.next();
+  },
+
+  // О себе
+  async (ctx) => {
+    if (ctx.message.text == '🙅 Пропустить 🙅')
+      ctx.session.user.about = '';
+    else ctx.session.user.about = ctx.message.text;
+    await User.create(ctx.session.user); // Сохранили в базу
+    ctx.reply("Отлично!\nДавай подберем для тебя интересные мероприятия!\nВыбери категорию из меню", menuModule.eventMenu(ctx.session.events && ctx.session.events.total))
+
     await ctx.scene.leave('registration');
-  });
+    ctx.scene.enter('eventMainMenu');
+  }
+);
   stage.register(register);
-  register.command('clear', async ctx => {ctx.reply('Есть выполнять команду!');
-                                    ctx.session.user = null;
-                                    await ctx.scene.leave('registration');
-                                  });
+
   return register;
 }
 
