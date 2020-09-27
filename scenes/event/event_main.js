@@ -3,6 +3,7 @@ const Extra = require('telegraf/extra');
 const Scene = require('telegraf/scenes/base');
 const searchers = require('../../search/event_search');
 const User = require('../../models/User');
+const menuModule = require('../menu');
 
 // Сделать первый символ строки заглавным
 const make_first_char_capital = str => {
@@ -15,6 +16,7 @@ let events_page = 1;
 let restaurants = 1;
 let walk_page = 1;
 let msgs = [];
+
 
 // функции для рендера ивента
 // slice на description от того, что KudaGo возвращает ответ с тэгами <p></p>
@@ -201,10 +203,6 @@ function event_main(stage) {
     const eventMainMenu = new Scene('eventMainMenu');
     stage.register(eventMainMenu);
 
-    // eventMainMenu.start((ctx) => {
-    //     ctx.reply('Раздел "Мероприятия"', )
-    // });
-
     // Кино
     eventMainMenu.hears('🎬 Кино', async ctx => {
         for (let msg of msgs)
@@ -232,13 +230,33 @@ function event_main(stage) {
         navigation_buttons(data, ctx, 'placew');
     });
 
+    // Рестораны
     eventMainMenu.hears('🍷 Рестораны', async ctx => {
         for (let msg of msgs)
             ctx.deleteMessage(msg);
         msgs = [];
         let data = await search_for_restaurants(ctx);
         navigation_buttons(data, ctx, 'placer');
-    })
+    });
+
+    //Главное меню
+    eventMainMenu.hears('🏫 Главное меню', async ctx => {
+        let e = ctx.session.events;
+        if (e && (e.event.length + e.cinema.length + e.place.length)) {
+            ctx.reply('"Главное меню"', {
+                reply_markup: {
+                    keyboard: menuModule.mainMenu()
+                }
+            })
+            await ctx.scene.leave('eventMainMenu');
+        } else
+            ctx.reply('Нужно выбрать хотя бы 1 событие, чтобы мы могли найти тебе пару');
+    });
+
+    //Профиль
+    eventMainMenu.hears('❤ Избранное', ctx => {
+
+    });
 
     //Навигация по страницам
     eventMainMenu.action(new RegExp('^next_(event|cinema|placew|placer)$'), ctx => {
@@ -282,36 +300,38 @@ function event_main(stage) {
     });
 
     // Добавление в избранное
-    eventMainMenu.action(new RegExp('^add_[0-9]+_(event|cinema|placew|placer)$'), ctx => {
+    eventMainMenu.action(new RegExp('^add_[0-9]+_(event|cinema|placew|placer)$'), async ctx => {
         let id = ctx.match[0].split('_')[1]; // чистый id
         let type = ctx.match[0].split('_')[2]; // тип (ивент\кино\место)
         // Инициализируем хранилище
-        if (!ctx.session.events)
+        if (!ctx.session.events) {
             ctx.session.events = {
                 event: [],
                 cinema: [],
                 place: [],
-                total: 0,
             }
+        }
 
         switch(type) {
             case ('event'):
                 ctx.session.events.event.push(Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {event: ctx.session.events.event}).exec();
                 break;
             case ('cinema'):
                 ctx.session.events.cinema.push(Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {cinema: ctx.session.events.cinema}).exec();
                 break;
             case ('placer'):
             case ('placew'):
                 ctx.session.events.place.push(Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {place: ctx.session.events.place}).exec();
                 break;
             default:
                 return;
         }
-        ctx.session.events.total++; //Суммарное число ивентов на юзере. Используем, чтобы проще проверять требования для меню
-
+        
         ctx.editMessageReplyMarkup({
-            inline_keyboard: delete_to_favourite_button(id + '_' + type)
+            inline_keyboard: delete_to_favourite_button(id + '_' + type),
         });
     });
 
@@ -326,19 +346,20 @@ function event_main(stage) {
         switch(type) {
             case ('event'):
                 ctx.session.events.event = ctx.session.events.event.filter((item) => item != Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {event: ctx.session.events.event}).exec();
                 break;
             case ('cinema'):
                 ctx.session.events.cinema = ctx.session.events.cinema.filter((item) => item != Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {cinema: ctx.session.events.cinema}).exec();
                 break;
             case ('placer'):
             case ('placew'):
                 ctx.session.events.place = ctx.session.events.place.filter((item) => item != Number(id));
+                User.findOneAndUpdate({id: ctx.session.user.id}, {event: ctx.session.events.event}).exec();
                 break;
             default:
                 return;
         }
-
-        ctx.session.events.total--; // Уменьшили общий счетчик ивентов
 
         ctx.editMessageReplyMarkup({
             inline_keyboard: add_to_favourite_button(id + '_' + type)
@@ -349,23 +370,5 @@ function event_main(stage) {
         eventMainMenu: eventMainMenu,
     }
 }
-/*
-Категории мест:
-    Классика - theatre,concert-hall,cinema,comedy-club
-    Загородом - suburb,stable,recreation
-    По-пьяне - strip-club,clubs
-    Погулять - sights,prirodnyj-zapovednik,photo-places,park,palace,homesteads,fountain,dogs,attractions,animal-shelters
-    Поесть - restaurants,bar,anticafe,brewery
-    Культура - museums,observatory,library,culture
-    Движуха - dance-studio,questroom,amusement
-
-Категории событий:
-    Образовательные - business-events,education,tour
-    Классика - cinema,concert,theater
-    Развлечения - entertainment,quest,recreation
-    Выставки - exhibition,festival,yarmarki-razvlecheniya-yarmarki
-    Вечеринки - party,holiday
-    Благотворительность - social-activity
-*/
 
 module.exports = {event_main}

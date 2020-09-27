@@ -3,11 +3,13 @@ const { Telegraf } = require('telegraf');
 const session = require('telegraf/session');
 const Stage = require('telegraf/stage');
 const Markup = require('telegraf/markup');
+const Extra = require('telegraf/extra');
 const mongoose = require('mongoose');
 const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
+const User = require('./models/User');
 //END OF IMPORTS
-
+const Scene = require('telegraf/scenes/base');
 
 //CONST BLOCK
 const stage = new Stage();
@@ -24,7 +26,7 @@ bot.use(stage.middleware());
 registration_module.registration(stage);
 event_module.event_main(stage);
 // DB connection
-const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true});
+const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true, useFindAndModify: false});
 connect.then((success) => {
     console.log("Successfully connected to database");
 }).catch((err) => console.log("ERROR: ", err));
@@ -46,20 +48,47 @@ bot.start((ctx) => {
   if (ctx.session.user)
     ctx.reply("Привет, " + ctx.session.user.name + "!\n" + ctx.session.user.gender ? 'Готов искать пару?)' : "Ты отлично выглядишь! Куда сегодня пойдем?)")
   else {
-    ctx.reply('Привет, давай регистрироваться');
+    ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
     ctx.scene.enter('registration');
   }
-  // ctx.reply('Hello!', inlineMessageRatingKeyboard);
-  // console.log(ctx.update.message.from.id);
 });
 
-bot.action('like', (ctx) => {
-  ctx.reply("here");
-  ctx.scene.enter('eventMainMenu');
+// ТЕСТ
+bot.command('ignat', ctx => {
+  ctx.telegram.sendMessage(650882495, 'Привет, Игнат');
 })
-bot.on('inline_query', (ctx) => ctx.reply("Not supported"))
 
-bot.hears('session', (ctx) => ctx.telegram.getUserProfilePhotos(ctx.message.from.id).then(res => console.log(res)))
+const testScene = new Scene("testScene");
+stage.register(testScene);
+
+bot.hears("new_scene", ctx => ctx.scene.enter('testScene'));
+testScene.hears("show", ctx=> ctx.reply("На тестовой сцене"));
+bot.hears('show', ctx => ctx.reply("На главное сцене"));
+
+User.watch().on('change', next => console.log("Изменения в базе", next));
+
+bot.hears("users", async ctx => {
+  User.find({}, function(err, users) {
+    users.forEach(item => {
+      ctx.replyWithHTML(`
+      <b>Это ${item.name}</b>
+      <a href="tg://user?id=${item.id}">клик</a>
+      `)
+    })
+  })
+})
+
+//Подписка тест
+// setInterval(function() {
+//   bot.telegram.sendMessage(650882495, 'Из интервала');
+// }, 10000);
+//ТЕСТ
+
 
 bot.command('clear', (ctx) => ctx.session.user = null)
 bot.launch()
+
+
+
+/// Пушить сообщения в бот
+// await fetch('https://api.telegram.org/botTOKEN/sendMessage?text=TEST&chat_id=123456';)

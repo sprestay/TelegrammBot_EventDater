@@ -78,7 +78,7 @@ function registration(stage) {
 
           //Проверка, есть ли фото профиля?
           let photo = await ctx.telegram.getUserProfilePhotos(ctx.message.from.id).then(res => res.photos[0]);
-          if (photo.length)
+          if (photo)
             await ctx.reply('Давай загрузим фото', Extra.markup(Markup.inlineKeyboard([Markup.callbackButton("🎥 Использовать фото профиля", 'profile')])));
           else
             await ctx.reply('Давай загрузим фото');
@@ -128,7 +128,12 @@ function registration(stage) {
       ctx.session.user.about = '';
     else ctx.session.user.about = ctx.message.text;
     await User.create(ctx.session.user); // Сохранили в базу
-    ctx.reply("Отлично!\nДавай подберем для тебя интересные мероприятия!\nВыбери категорию из меню", menuModule.eventMenu(ctx.session.events && ctx.session.events.total))
+    ctx.reply("Отлично!\nДавай подберем для тебя интересные мероприятия!\nВыбери категорию из меню",
+             {
+               reply_markup: { 
+                 keyboard: menuModule.eventMenu()
+                } 
+              });
 
     await ctx.scene.leave('registration');
     ctx.scene.enter('eventMainMenu');
