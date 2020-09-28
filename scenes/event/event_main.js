@@ -16,6 +16,7 @@ let events_page = 1;
 let restaurants = 1;
 let walk_page = 1;
 let msgs = [];
+let error_info = []; // В этот массив записываем id сообщений об ошибках, чтобы по 100 раз не писать одно и то же
 
 
 // функции для рендера ивента
@@ -249,8 +250,11 @@ function event_main(stage) {
                 }
             })
             await ctx.scene.leave('eventMainMenu');
-        } else
-            ctx.reply('Нужно выбрать хотя бы 1 событие, чтобы мы могли найти тебе пару');
+        } else {
+            for (let error of error_info) // Удаляем прошлые сообщения об ошибках
+                ctx.deleteMessage(error);
+            ctx.reply('Нужно выбрать хотя бы 1 событие, чтобы мы могли найти тебе пару').then(res => error_info.push(res.message_id));
+        }
     });
 
     //Профиль

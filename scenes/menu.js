@@ -1,24 +1,6 @@
 const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 
-// const eventMenu = flag => {
-// if (flag)
-//     return (
-//         Markup.keyboard([
-//             ['🎬 Кино','🎉 События'],
-//             ['🍷 Рестораны', '👫 Прогулки'],
-//             ['🏫 Главное меню', '❤ Избранное']
-//         ]).resize().extra()
-//     )
-// else 
-//     return (
-//         Markup.keyboard([
-//             ['🎬 Кино','🎉 События'],
-//             ['🍷 Рестораны', '👫 Прогулки'],
-//         ]).resize().extra()
-//     )
-// }
-
 const eventMenu = () => {
         return ([
                 [Markup.button('🎬 Кино'), Markup.button('🎉 События')],
@@ -29,8 +11,8 @@ const eventMenu = () => {
 
 const mainMenu = () => {
     return ([
-        [Markup.button('🔍 Поиск людей'), Markup.button('🎪 Поиск ивентов')],
-        [Markup.button('👤 Профиль'), Markup.button('💕 Пары')]
+        [Markup.button('🔍 Поиск людей'), Markup.button('💕 Пары')],
+        [Markup.button('👤 Профиль'), Markup.button('🎪 Поиск ивентов')]
     ])
 }
 

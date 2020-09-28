@@ -7,6 +7,7 @@ const Extra = require('telegraf/extra');
 const mongoose = require('mongoose');
 const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
+const tinder = require('./scenes/dating/tinder');
 const User = require('./models/User');
 //END OF IMPORTS
 const Scene = require('telegraf/scenes/base');
@@ -53,6 +54,17 @@ bot.start((ctx) => {
   }
 });
 
+bot.hears('🔍 Поиск людей', ctx => {
+  ctx.session.user = {
+    gender: true,
+    cinema: [4112, 4319],
+    place: [18778],
+    event: [187857],
+    id: 522341
+  }
+  tinder(ctx);
+})
+
 // ТЕСТ
 bot.command('ignat', ctx => {
   ctx.telegram.sendMessage(650882495, 'Привет, Игнат');
@@ -84,10 +96,8 @@ bot.hears("users", async ctx => {
 // }, 10000);
 //ТЕСТ
 
-
 bot.command('clear', (ctx) => ctx.session.user = null)
 bot.launch()
-
 
 
 /// Пушить сообщения в бот

@@ -95,13 +95,17 @@ function registration(stage) {
     
     // Фото
 
-    async (ctx) => {
+    async (ctx) => { // Все меню должны удаляться. Нажатие на сторое меню роняет сервер
       let url = null;
       if (ctx.update.callback_query && ctx.update.callback_query.data == 'profile') {
           await ctx.telegram.getUserProfilePhotos(ctx.update.callback_query.from.id) // Как это отработает, если пользователь без фото?
             .then(res => res.photos[0][0].file_id)
-            .then(id => ctx.telegram.getFileLink(id).then(src => url = src));
+            .then(id => {
+              ctx.session.user.photo = id; // Сохраняем id на сервере telegram, s3 не нужен
+              return ctx.telegram.getFileLink(id).then(src => url = src)
+            });
       } else if (ctx.message.photo) {
+          ctx.session.user.photo = ctx.message.photo[0].file_id; // Сохраняем id photo на сервере телеграмма
           await ctx.telegram.getFileLink(ctx.message.photo[0].file_id)
             .then(src => url = src);
       } else {
@@ -124,7 +128,7 @@ function registration(stage) {
 
   // О себе
   async (ctx) => {
-    if (ctx.message.text == '🙅 Пропустить 🙅')
+    if (ctx.message.text == '🙅 Пропустить 🙅') // Ужасное отображение на маленьких экранах - протестируй
       ctx.session.user.about = '';
     else ctx.session.user.about = ctx.message.text;
     await User.create(ctx.session.user); // Сохранили в базу

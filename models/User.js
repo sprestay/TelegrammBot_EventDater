@@ -18,6 +18,9 @@ var UserSchema = new Schema({
         type: Number,
         required: true,
     },
+    photo: {
+        type: String,
+    },
     about: {
         type: String,
     },
@@ -28,7 +31,13 @@ var UserSchema = new Schema({
         type: Array,
     },
     place: {
-        type: Array
+        type: Array,
+    },
+    likes: {
+        type: Array,
+    },
+    pairs: {
+        type: Array,
     }
 }, {timestamps: true});
 
