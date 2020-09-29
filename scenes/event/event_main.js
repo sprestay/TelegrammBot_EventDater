@@ -246,7 +246,8 @@ function event_main(stage) {
         if (e && (e.event.length + e.cinema.length + e.place.length)) {
             ctx.reply('"Главное меню"', {
                 reply_markup: {
-                    keyboard: menuModule.mainMenu()
+                    keyboard: menuModule.mainMenu(),
+                    resize_keyboard: true,
                 }
             })
             await ctx.scene.leave('eventMainMenu');

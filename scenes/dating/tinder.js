@@ -4,20 +4,19 @@ const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 const Scene = require('telegraf/scenes/base');
 const searchers = require('../../search/people_search');
-// const AWS = require('aws-sdk');
-// const fs = require('fs');
 
-
-// const s3 = new AWS.S3({params: {Bucket: 'event-dater-tg'}});
 
 let users = []; // Сюда запишем все, что вернется из базы
 let index = 0; // Тот профиль, который показываем сейчас
+let previous = null;
 
-const render_profile = async (ctx, user) => {
+const render_profile = async (ctx, person) => {
+    if (previous)
+        ctx.deleteMessage(previous);
     // Подбираем соовпадающие события
-    let cinema = user.cinema.filter(item => ctx.session.user.cinema.indexOf(item) != -1);
-    let place = user.place.filter(item => ctx.session.user.place.indexOf(item) != -1);
-    let event = user.event.filter(item => ctx.session.user.event.indexOf(item) != -1);
+    let cinema = person.cinema.filter(item => ctx.session.user.cinema.indexOf(item) != -1);
+    let place = person.place.filter(item => ctx.session.user.place.indexOf(item) != -1);
+    let event = person.event.filter(item => ctx.session.user.event.indexOf(item) != -1);
     // Получаем названия событий
     cinema = cinema.length ? await searchers.get_description('cinema', cinema) : false;
     place = place.length ? await searchers.get_description('place', place) : false;
@@ -29,32 +28,51 @@ const render_profile = async (ctx, user) => {
     ]));
 
     cap.caption = `
-    <b>${user.name.toUpperCase()}</b>,  <i>${user.age}</i>\n
-    ${user.about.length > 1 ? user.about : ''}
+    <b>${person.name.toUpperCase()}</b>,  <i>${person.age}</i>\n
+    ${person.about.length > 1 ? person.about : ''}
     \n
-    Как и ты, ${user.name} ${cinema ? 'хочет посмотреть:\n' + cinema + '\n' : '' } ${place ? 'хочет сходить:\n' + place + '\n': ''} ${event ? 'хочет посетить:\n' + event + '\n': ''}
+    Как и ты, ${person.name} ${cinema ? 'хочет посмотреть:\n' + cinema + '\n' : '' } ${place ? 'хочет сходить:\n' + place + '\n': ''} ${event ? 'хочет посетить:\n' + event + '\n': ''}
     `;
 
     cap.parse_mode = 'HTML';
-    ctx.replyWithPhoto(user.photo, cap);
+    ctx.replyWithPhoto(person.photo, cap).then(res => previous = res.message_id);
 }
 
 async function tinder(ctx) {
-    console.log("In fucntion")
-    if (users.length == 0)
+    if (users.length == 0) 
         users = await searchers.people_search(ctx.session.user);
     if (users.length == 0) {
         ctx.replyWithHTML("Прости, пока нету пользователей =(\n<b>Попробуй позднее</b>");
         return;
     }
-    // s3.getObject({Key: users[0].id.toString()}, function(err, data) {
-    //     if (err)
-    //         console.log("ERROR", err);
-    //     fs.writeFileSync('test.png', data.Body)
-    // });
-    render_profile(ctx, users[index]);
-    index++;
+    if (index < users.length) {
+        render_profile(ctx, users[index]);
+        index++;
+    } else {
+        ctx.deleteMessage(previous);
+        ctx.replyWithHTML("Прости, пока нету пользователей =(\n<b>Попробуй позднее</b>");
+        ctx.scene.leave();
+    }
 }
 
-module.exports = tinder;
+function peopleSearchScene(stage) {
+    const peopleSearch = new Scene('peopleSearch');
+    stage.register(peopleSearch);
+
+    peopleSearch.action('like', ctx => {
+        ctx.session.user.likes.push(users[index - 1].id);
+        User.findOneAndUpdate({id: ctx.session.user.id}, {$push: {likes: users[index - 1].id}}).exec();
+        tinder(ctx);
+    });
+
+    peopleSearch.action('dislike', ctx => {
+        ctx.session.user.dislikes.push(users[index - 1].id);
+        User.findOneAndUpdate({id: ctx.session.user.id}, {$push: {dislikes: users[index - 1].id}}).exec();
+        tinder(ctx);
+    });
+
+    return peopleSearch;
+}
+
+module.exports = { tinder, peopleSearchScene };
 //.answer_callback_query

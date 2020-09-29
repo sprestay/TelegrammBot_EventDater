@@ -44,6 +44,9 @@ function registration(stage) {
             gender: null,
             age: null,
             about: null,
+            likes: [],
+            dislikes: [],
+            pairs: [],
         }
         ctx.session.user.name = ctx.message.text;
         await ctx.reply("Приятно познакомиться, " + ctx.session.user.name);
@@ -122,7 +125,7 @@ function registration(stage) {
         });
       });
     // Дописать условий и проверок
-    ctx.reply("Фото получили.\nРасскажи немного о себе", Extra.markup(Markup.keyboard([Markup.button('🙅 Пропустить 🙅')])))
+    ctx.reply("Фото получили.\nРасскажи немного о себе", Extra.markup(Markup.keyboard([Markup.button('🙅 Пропустить 🙅')]).resize()))
     return ctx.wizard.next();
   },
 
@@ -135,7 +138,8 @@ function registration(stage) {
     ctx.reply("Отлично!\nДавай подберем для тебя интересные мероприятия!\nВыбери категорию из меню",
              {
                reply_markup: { 
-                 keyboard: menuModule.eventMenu()
+                 keyboard: menuModule.eventMenu(),
+                 resize_keyboard: true,
                 } 
               });
 

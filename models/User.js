@@ -36,6 +36,9 @@ var UserSchema = new Schema({
     likes: {
         type: Array,
     },
+    dislikes: {
+        type: Array,
+    },
     pairs: {
         type: Array,
     }

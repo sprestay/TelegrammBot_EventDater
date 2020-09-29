@@ -7,10 +7,12 @@ const Extra = require('telegraf/extra');
 const mongoose = require('mongoose');
 const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
-const tinder = require('./scenes/dating/tinder');
+const tinder_module = require('./scenes/dating/tinder');
 const User = require('./models/User');
+const menuModule = require('./scenes/menu');
 //END OF IMPORTS
 const Scene = require('telegraf/scenes/base');
+
 
 //CONST BLOCK
 const stage = new Stage();
@@ -26,17 +28,13 @@ bot.use(session());
 bot.use(stage.middleware());
 registration_module.registration(stage);
 event_module.event_main(stage);
+tinder_module.peopleSearchScene(stage);
 // DB connection
 const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true, useFindAndModify: false});
 connect.then((success) => {
     console.log("Successfully connected to database");
 }).catch((err) => console.log("ERROR: ", err));
 //
-
-const inlineMessageRatingKeyboard = Markup.inlineKeyboard([
-  Markup.callbackButton('👍', 'like'),
-  Markup.callbackButton('👎', 'dislike')
-]).extra()
 
 
 bot.hears("find_me", ctx => console.log(ctx.message.from.id));
@@ -45,25 +43,51 @@ bot.hears("get", ctx => ctx.telegram.getUserProfilePhotos(ctx.message.from.id)
 
 
 
-bot.start((ctx) => {
+bot.start(async (ctx) => {
+  let id = ctx.update.message.from.id;
+  ctx.session.user = await User.findOne({id: id}).exec();
   if (ctx.session.user)
-    ctx.reply("Привет, " + ctx.session.user.name + "!\n" + ctx.session.user.gender ? 'Готов искать пару?)' : "Ты отлично выглядишь! Куда сегодня пойдем?)")
+    ctx.reply("Привет, " + ctx.session.user.name + "!\nРад тебя видеть", {
+      reply_markup: {
+        keyboard: menuModule.mainMenu(),
+      }
+    })
   else {
     ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
     ctx.scene.enter('registration');
   }
 });
 
-bot.hears('🔍 Поиск людей', ctx => {
+bot.hears('🔍 Поиск людей', async ctx => {
   ctx.session.user = {
     gender: true,
-    cinema: [4112, 4319],
+    cinema: [4112, 4319, 4517],
     place: [18778],
-    event: [187857],
-    id: 522341
+    event: [187857, 172178],
+    id: 650882495,
+    likes: [],
+    dislikes: [],
   }
-  tinder(ctx);
-})
+  tinder_module.tinder(ctx);
+  await ctx.scene.enter('peopleSearch');
+});
+
+bot.hears('👤 Профиль', ctx => {
+  ctx.reply("ON PROFILE COMPONENT");
+});
+
+bot.hears('💕 Пары', ctx => {
+  ctx.reply("Компонент ПАРЫ");
+});
+
+bot.hears('🎪 Поиск ивентов', async ctx => {
+  ctx.reply("Ну смотри, что есть", {
+    reply_markup: {
+      keyboard: menuModule.eventMenu()
+    }
+  })
+  await ctx.scene.enter('eventMainMenu');
+});
 
 // ТЕСТ
 bot.command('ignat', ctx => {

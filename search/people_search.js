@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const fetch = require('node-fetch');
 
-/// Добавить условие, что не в парах
+/// Добавить условие, что не в парах 
+/// Что не в лайках и не в дизлайках
 
 async function look_who_likes(current) {
     let users = await User.find({
