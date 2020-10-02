@@ -44,18 +44,18 @@ bot.hears("get", ctx => ctx.telegram.getUserProfilePhotos(ctx.message.from.id)
 
 
 bot.start(async (ctx) => {
-  let id = ctx.update.message.from.id;
-  ctx.session.user = await User.findOne({id: id}).exec();
-  if (ctx.session.user)
-    ctx.reply("Привет, " + ctx.session.user.name + "!\nРад тебя видеть", {
-      reply_markup: {
-        keyboard: menuModule.mainMenu(),
-      }
-    })
-  else {
+  // let id = ctx.update.message.from.id;
+  // ctx.session.user = await User.findOne({id: id}).exec();
+  // if (ctx.session.user)
+  //   ctx.reply("Привет, " + ctx.session.user.name + "!\nРад тебя видеть", {
+  //     reply_markup: {
+  //       keyboard: menuModule.mainMenu(),
+  //     }
+  //   })
+  // else {
     ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
     ctx.scene.enter('registration');
-  }
+  // }
 });
 
 bot.hears('🔍 Поиск людей', async ctx => {

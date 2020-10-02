@@ -6,26 +6,31 @@ const AWS = require('aws-sdk');
 const stream = require('stream');
 const User = require('../../models/User');
 const menuModule = require('../menu');
+const { MarketplaceCatalog } = require("aws-sdk");
+const { markup } = require("telegraf/extra");
 
 
-const s3 = new AWS.S3({params: {Bucket: 'event-dater-tg'}});
+const rekognition = new AWS.Rekognition({apiVersion: '2016-06-27', region: 'us-east-1',});
+// const s3 = new AWS.S3({params: {Bucket: 'event-dater-tg'}});
 
 const GenderKeyboard = 
-  Extra.markup(Markup.inlineKeyboard([
-    Markup.callbackButton('🚹 Мужской', 'male'),
-    Markup.callbackButton('🚺 Женский', 'female')
-  ]));
+   Extra.markup(Markup.inlineKeyboard([
+      Markup.callbackButton('🚹 Мужской', 'male'),
+      Markup.callbackButton('🚺 Женский', 'female')
+    ]));
+
+let message_with_inline_for_change = null;
 
 // Функция для загрузки на AWS S3
-const uploadFromStream = (s3, key) => {
-    var pass = new stream.PassThrough();
+// const uploadFromStream = (s3, key) => {
+//     var pass = new stream.PassThrough();
   
-    var params = {Key: key.toString(), Body: pass};
-    s3.upload(params, function(err, data) {
-      console.log(err, data);
-    });
-    return pass;
-  }
+//     var params = {Key: key.toString(), Body: pass};
+//     s3.upload(params, function(err, data) {
+//       console.log(err, data);
+//     });
+//     return pass;
+//   }
 
 
 function registration(stage) {
@@ -33,11 +38,12 @@ function registration(stage) {
     "registration",
     
     async (ctx) => {
-      ctx.reply("Как тебя зовут?");
+      ctx.replyWithHTML("<b>Как тебя зовут?</b>");
       return ctx.wizard.next();
     },
     async (ctx) => {
-      if (ctx.message.text && ctx.message.text.length > 1 && new RegExp('[A-я]+', 'gi').test(ctx.message.text)) {
+      let text = ctx.message && ctx.message.text ? ctx.message.text.trim() : null; // Не учитываем имя из нескольких слов
+      if (text && text.length > 1 && new RegExp('^[А-я]+$', 'gi').test(text)) {
         ctx.session.user = {
             id: ctx.message.from.id,
             name: null,
@@ -48,24 +54,35 @@ function registration(stage) {
             dislikes: [],
             pairs: [],
         }
-        ctx.session.user.name = ctx.message.text;
+        ctx.session.user.name = text[0].toUpperCase() + text.toLowerCase().slice(1,);
         await ctx.reply("Приятно познакомиться, " + ctx.session.user.name);
-        await ctx.reply("Твой пол:",  GenderKeyboard);
+        await ctx.replyWithHTML("<b>Твой пол:</b>",  GenderKeyboard ).then(res => message_with_inline_for_change = res.message_id);
         return ctx.wizard.next();
-    } else {
-        ctx.reply("Эмм... Похоже в имени ошибка. Попробуй снова")
-    }
-  },
+      } else {
+          ctx.reply("Эмм... Похоже в имени ошибка. Попробуй снова")
+      }
+    },
   // Пол
 
   (ctx) => {
-    let callback = ctx.update.callback_query ? ctx.update.callback_query.data : ctx.message.text.trim().toLowerCase();
+    let callback = ctx.update.callback_query ? ctx.update.callback_query.data : ctx.update.message.text;
+    if (callback)
+      callback = callback.trim().toLowerCase();
 
     if (['female', 'male', 'м', 'ж', 'муж', 'жен', "женск", "мужской", "женский"].indexOf(callback) != -1) {
-      if (['male', 'м', "муж", "мужской"].indexOf(callback) != -1)
-          ctx.session.user.gender = 1;
-      else ctx.session.user.gender = 0;
-      ctx.reply("Сколько тебе лет?");
+      if (['male', 'м', "муж", "мужской"].indexOf(callback) != -1) {
+        ctx.session.user.gender = 1;
+        ctx.telegram.editMessageText(ctx.session.user.id, message_with_inline_for_change, undefined, 'Пол', { reply_markup: 
+          { inline_keyboard: [[Markup.callbackButton('✔ 🚹 Мужской ✔', 'male')]] }
+        });
+      }
+      else {
+        ctx.session.user.gender = 0;
+        ctx.telegram.editMessageText(ctx.session.user.id, message_with_inline_for_change, undefined, 'Пол', { reply_markup: 
+          { inline_keyboard: [[Markup.callbackButton('✔ 🚺 Женский ✔', 'female')]] }
+        });
+      }
+      ctx.replyWithHTML("<b>Сколько тебе лет?</b>");
       return ctx.wizard.next();
     } else {
         ctx.reply("Не понял тебя.\nЛучше просто нажми на кнопку)")
@@ -74,22 +91,23 @@ function registration(stage) {
   // Возраст
     
     async (ctx) => {
-      let age = parseInt(ctx.message.text, 10);
-      if (Number.isInteger(age) && age >= 18 && age <= 70) {
+      let age = ctx && ctx.message && ctx.message.text ? parseInt(ctx.message.text, 10) : null;
+      if (age && Number.isInteger(age) && age >= 18 && age <= 70) {
           await ctx.reply(age.toString() + '..., так и запишем');
           ctx.session.user.age = age;
 
           //Проверка, есть ли фото профиля?
           let photo = await ctx.telegram.getUserProfilePhotos(ctx.message.from.id).then(res => res.photos[0]);
           if (photo)
-            await ctx.reply('Давай загрузим фото', Extra.markup(Markup.inlineKeyboard([Markup.callbackButton("🎥 Использовать фото профиля", 'profile')])));
+            await ctx.replyWithHTML('<b>Давай загрузим фото</b>', Extra.markup(Markup.inlineKeyboard([Markup.callbackButton("🎥 Использовать фото профиля", 'profile')])));
           else
-            await ctx.reply('Давай загрузим фото');
+            await ctx.replyWithHTML('<b>Давай загрузим фото</b>');
 
           return ctx.wizard.next();
-      } else if (!Number.isInteger(age))
-          ctx.reply("Что-то ты не то ввел" + сtx.session.user.gender ? '' : 'a');
-      else {
+      } else if (!age || !Number.isInteger(age)) { // если age == null, значит пользователь скинул что-то, или не Number, значит ввел фигню
+          let sub_end = ctx.session.user.gender ? '' : 'a';
+          ctx.reply("Что-то ты не то ввел" + sub_end);
+      } else {
           ctx.reply("Общаюсь только с теми, кому от 18 до 70 лет.\nПрости, такие правила)");
           ctx.session.user = null;
           await ctx.scene.leave('registration');
@@ -104,7 +122,7 @@ function registration(stage) {
           await ctx.telegram.getUserProfilePhotos(ctx.update.callback_query.from.id) // Как это отработает, если пользователь без фото?
             .then(res => res.photos[0][0].file_id)
             .then(id => {
-              ctx.session.user.photo = id; // Сохраняем id на сервере telegram, s3 не нужен
+              ctx.session.user.photo = id; // Сохраняем id на сервере telegram. То, что сохраняем ДО проверок содержимого - не страшно, в базу пишем только на след.шаге
               return ctx.telegram.getFileLink(id).then(src => url = src)
             });
       } else if (ctx.message.photo) {
@@ -115,25 +133,70 @@ function registration(stage) {
           ctx.reply("Неверный тип файла.");
           return;
       }
-      // Сделать индикатор загрузки
-
-      axios({url, responseType: 'stream'}).then(response => {
-        return new Promise((res, rej) => {
-          response.data.pipe(uploadFromStream(s3, ctx.session.user.id))
-          .on('finish', () => {console.log("Successfully saved")})
-          .on('error', error => console.log("ERROR WHILE SAVING", error));
-        });
+      await ctx.reply("Проверяем фото.... Подожди")
+      // Загружаем фото. С помощью AWS проверяем что на фото человек, и нет порнухи
+      axios({url, responseType: 'arraybuffer'}).then(async response => {
+        // Проверка, что человек
+              rekognition.detectFaces({Image: {
+                  Bytes: Buffer.from(response.data),
+              }}, 
+              function(err, data) {
+                    if (err) console.log(err, err.stack);
+                    else {
+                        let res = data.FaceDetails;
+                        if (res.length > 0 && res[0].Confidence > 80) {
+                          rekognition.detectModerationLabels({Image: { //Если на фото человек - проверяем на цензуру
+                              Bytes: Buffer.from(response.data),
+                          }}, function(err, data) {
+                              if (err) console.log(err, err.stack);
+                              else {
+                                  let res = data.ModerationLabels;
+                                  if (res.length == 0 || res[0].Name == 'Suggestive' || res[0].Name =='Female Swimwear Or Underwear') {
+                                      ctx.replyWithHTML("Фото установлено.\n<b>Где ты живешь?</b>", Extra.markup(Markup.inlineKeyboard([[
+                                        Markup.callbackButton('Москва', 'msk'),
+                                        Markup.callbackButton('Питер', 'spb'),
+                                        Markup.callbackButton('Другое', 'another'),
+                                      ]])));
+                                      return ctx.wizard.next();
+                                  } else {
+                                      ctx.reply('Так! Вот без порнухи, пожалуйста');
+                                      return;
+                                  }
+                              }
+                          });
+                        }
+                        else {
+                          ctx.reply('На фото должно быть видно лицо, я ведь бот для знакомств)');
+                          return;
+                        }
+                    }    
+              });
       });
-    // Дописать условий и проверок
-    ctx.reply("Фото получили.\nРасскажи немного о себе", Extra.markup(Markup.keyboard([Markup.button('🙅 Пропустить 🙅')]).resize()))
-    return ctx.wizard.next();
   },
 
+  // Геолокация
+  async (ctx) => {
+    let msg = ctx.update.callback_query ? ctx.update.callback_query.data : ctx.update.message.text;
+    if (msg && new RegExp('^[A-я]+$', 'gi').test(msg)) {
+      msg = msg.trim().toLowerCase();
+      if (['мск', 'москва', 'моск', 'moscow', 'msk',].indexOf(msg) != -1)
+        msg = 'msk';
+      if (['spb', 'спб', "питер", "санкт-петербург", "ленинград", "saint-petersburg", "piter"].indexOf(msg) != -1)
+        msg = 'spb';
+      ctx.session.user.location = msg;
+      ctx.replyWithHTML("Последний шаг!)\n<b>Расскажи немного о себе</b>", Extra.markup(Markup.keyboard([Markup.button('🙅 Пропустить 🙅')]).resize()))
+      return ctx.wizard.next();
+    } else {
+      ctx.reply("Некорректное название города");
+      return;
+    }
+  },
+  
   // О себе
   async (ctx) => {
-    if (ctx.message.text == '🙅 Пропустить 🙅') // Ужасное отображение на маленьких экранах - протестируй
+    if (ctx.message && ctx.message.text == '🙅 Пропустить 🙅') 
       ctx.session.user.about = '';
-    else ctx.session.user.about = ctx.message.text;
+    else ctx.session.user.about = ctx.message ? ctx.message.text : '';
     await User.create(ctx.session.user); // Сохранили в базу
     ctx.reply("Отлично!\nДавай подберем для тебя интересные мероприятия!\nВыбери категорию из меню",
              {
@@ -145,7 +208,8 @@ function registration(stage) {
 
     await ctx.scene.leave('registration');
     ctx.scene.enter('eventMainMenu');
-  }
+  },
+
 );
   stage.register(register);
 

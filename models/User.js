@@ -18,6 +18,9 @@ var UserSchema = new Schema({
         type: Number,
         required: true,
     },
+    location: {
+      type: String,  
+    },
     photo: {
         type: String,
     },
