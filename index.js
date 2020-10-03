@@ -39,28 +39,24 @@ connect.then((success) => {
 //
 
 bot.start(async (ctx) => {
-  // let id = ctx.update.message.from.id;
-  // ctx.session.user = await User.findOne({id: id}).exec();
-  // if (ctx.session.user)
-  //   ctx.reply("Привет, " + ctx.session.user.name + "!\nРад тебя видеть", {
-  //     reply_markup: {
-  //       keyboard: menuModule.mainMenu(),
-  //     }
-  //   })
-  // else {
-    // ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
-    // ctx.scene.enter('registration');
-  // }
+  let id = ctx.update.message.from.id;
+  ctx.session.user = await User.findOne({id: id}).exec();
+  if (ctx.session.user)
+    ctx.reply("Привет, " + ctx.session.user.name + "!\nРад тебя видеть", {
+      reply_markup: {
+        keyboard: menuModule.mainMenu(),
+      }
+    })
+  else {
+    ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
+    ctx.scene.enter('registration');
+  }
 });
 
 bot.command('feedback', async ctx => {
   ctx.replyWithHTML(`<b>Напиши, о чем ты хочешь сообщить.</b>\nЛюбая обртаная связь привеветствуется!)\n<i>Но помни, бот по-прежнему находится в разработке.</i>`);
   await ctx.scene.enter('FeedbackScene');
-})
-
-bot.on('text', ctx => {
-  ctx.reply("На главной странице")
-})
+});
 
 
 bot.hears('🔍 Поиск людей', async ctx => {
