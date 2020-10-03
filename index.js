@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
 const tinder_module = require('./scenes/dating/tinder');
+const feedback_scene = require('./scenes/feedback/feedback');
 const User = require('./models/User');
 const menuModule = require('./scenes/menu');
 //END OF IMPORTS
@@ -28,6 +29,7 @@ bot.use(session());
 bot.use(stage.middleware());
 registration_module.registration(stage);
 event_module.event_main(stage);
+feedback_scene(stage);
 tinder_module.peopleSearchScene(stage);
 // DB connection
 const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true, useFindAndModify: false});
@@ -35,13 +37,6 @@ connect.then((success) => {
     console.log("Successfully connected to database");
 }).catch((err) => console.log("ERROR: ", err));
 //
-
-
-bot.hears("find_me", ctx => console.log(ctx.message.from.id));
-bot.hears("get", ctx => ctx.telegram.getUserProfilePhotos(ctx.message.from.id)
-                        .then(res => console.log(res.photos)));
-
-
 
 bot.start(async (ctx) => {
   // let id = ctx.update.message.from.id;
@@ -53,10 +48,20 @@ bot.start(async (ctx) => {
   //     }
   //   })
   // else {
-    ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
-    ctx.scene.enter('registration');
+    // ctx.reply('Привет, давай регистрироваться', Extra.markup(Markup.removeKeyboard()));
+    // ctx.scene.enter('registration');
   // }
 });
+
+bot.command('feedback', async ctx => {
+  ctx.replyWithHTML(`<b>Напиши, о чем ты хочешь сообщить.</b>\nЛюбая обртаная связь привеветствуется!)\n<i>Но помни, бот по-прежнему находится в разработке.</i>`);
+  await ctx.scene.enter('FeedbackScene');
+})
+
+bot.on('text', ctx => {
+  ctx.reply("На главной странице")
+})
+
 
 bot.hears('🔍 Поиск людей', async ctx => {
   ctx.session.user = {
