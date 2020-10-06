@@ -54,10 +54,16 @@ bot.command('feedback', async ctx => {
   await ctx.scene.enter('FeedbackScene');
 });
 
-bot.on('text', ctx => {
-  ctx.replyWithHTML(`Я все еще в разработке 😞, но ты будешь ${ctx.session.user.gender ? 'первым' : 'первой'}, кому я сообщу, когда все будет готово😉
-  \nЕсли у тебя есть вопросы или предложения - воспользуйся 👉/feedback 👈`)
+bot.on('text', async ctx => {
+  let id = ctx.update.message.from.id;
+  ctx.session.user = await User.findOne({id: id}).exec();
+  if (ctx.session.user)
+    ctx.replyWithHTML(`Я все еще в разработке 😞, но ты будешь ${ctx.session.user.gender ? 'первым' : 'первой'}, кому я сообщу, когда все будет готово😉
+    \nЕсли у тебя есть вопросы или предложения - воспользуйся 👉/feedback 👈`);
+  else {
+    await ctx.replyWithHTML(`Для начала, давай познакомимся.`, Extra.markup(Markup.removeKeyboard()));
+    ctx.scene.enter('registration');
+  }
 });
-
 
 bot.launch();
