@@ -14,7 +14,7 @@ const User = require('./models/User');
 //CONST BLOCK
 const stage = new Stage();
 const bot = new Telegraf(config.api_token);
-const db_url = `mongodb+srv://${config.db_user}:${config.db_password}@cluster0.oqvee.mongodb.net/${config.db_name}?retryWrites=true&w=majority`;
+const db_url = `mongodb+srv://${config.db_user}:${config.db_password}@eventdater.2weze.mongodb.net/${config.db_name}?retryWrites=true&w=majority`
 
 
 // Settings
