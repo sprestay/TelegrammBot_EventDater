@@ -50,7 +50,7 @@ function registration(stage) {
             gender: null,
             age: null,
             about: null,
-            likes: [],
+            likes: [650882495], //УДАЛИТЬ В ПРОДАКШН
             dislikes: [],
             pairs: [],
         }

@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
 const tinder_module = require('./scenes/dating/tinder');
+const pair_module = require('./scenes/dating/pairs');
 const feedback_scene = require('./scenes/feedback/feedback');
 const User = require('./models/User');
 const menuModule = require('./scenes/menu');
@@ -31,6 +32,7 @@ registration_module.registration(stage);
 event_module.event_main(stage);
 feedback_scene(stage);
 tinder_module.peopleSearchScene(stage);
+pair_module.pairScene(stage);
 // DB connection
 const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true, useFindAndModify: false});
 connect.then((success) => {
@@ -77,8 +79,9 @@ bot.hears('👤 Профиль', ctx => {
   ctx.reply("ON PROFILE COMPONENT");
 });
 
-bot.hears('💕 Пары', ctx => {
-  ctx.reply("Компонент ПАРЫ");
+bot.hears('💕 Пары', async ctx => {
+  pair_module.pair(ctx);
+  await ctx.scene.enter('pairScene');
 });
 
 bot.hears('🎪 Поиск ивентов', async ctx => {
@@ -115,6 +118,7 @@ bot.hears("users", async ctx => {
   })
 })
 
+bot.catch((err) => console.log("ERROR", err));
 //Подписка тест
 // setInterval(function() {
 //   bot.telegram.sendMessage(650882495, 'Из интервала');
