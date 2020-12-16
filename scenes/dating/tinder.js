@@ -80,4 +80,3 @@ function peopleSearchScene(stage) {
 }
 
 module.exports = { tinder, peopleSearchScene };
-//.answer_callback_query

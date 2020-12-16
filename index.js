@@ -1,4 +1,3 @@
-const api_token = '1256406675:AAGxKpXKK0JQ2L3e7O0LzAffFAsH1dpAs_4';
 const { Telegraf } = require('telegraf');
 const session = require('telegraf/session');
 const Stage = require('telegraf/stage');
@@ -9,20 +8,19 @@ const registration_module = require('./scenes/registration/registration');
 const event_module = require('./scenes/event/event_main');
 const tinder_module = require('./scenes/dating/tinder');
 const pair_module = require('./scenes/dating/pairs');
+const chat_module = require('./scenes/dating/chat');
 const feedback_scene = require('./scenes/feedback/feedback');
 const User = require('./models/User');
 const menuModule = require('./scenes/menu');
+const config = require('./config');
 //END OF IMPORTS
 const Scene = require('telegraf/scenes/base');
 
 
 //CONST BLOCK
 const stage = new Stage();
-const bot = new Telegraf(api_token);
-const db_user = 'sprestay';
-const db_password = 'xF9kibsAwCXWYbkF';
-const db_name = 'event_dater_tg'
-const db_url = `mongodb+srv://${db_user}:${db_password}@cluster0.oqvee.mongodb.net/${db_name}?retryWrites=true&w=majority`;
+const bot = new Telegraf(config.api_token);
+const db_url = `mongodb+srv://${config.db_user}:${config.db_password}@cluster0.oqvee.mongodb.net/${config.db_name}?retryWrites=true&w=majority`;
 
 
 // Settings
@@ -33,6 +31,7 @@ event_module.event_main(stage);
 feedback_scene(stage);
 tinder_module.peopleSearchScene(stage);
 pair_module.pairScene(stage);
+chat_module.chatScene(stage);
 // DB connection
 const connect = mongoose.connect(db_url, { useNewUrlParser: true , useUnifiedTopology: true, useFindAndModify: false});
 connect.then((success) => {
@@ -98,6 +97,15 @@ bot.command('ignat', ctx => {
   ctx.telegram.sendMessage(650882495, 'Привет, Игнат');
 })
 
+bot.command('send_invitation_email', async ctx => {
+  if (ctx.session && ctx.session.user.id == 650882495) {
+    let users = await User.find({});
+    for (var i of users) {
+      ctx.telegram.sendMessage(i.id, 'Привет, мы запустили тест! https://tinlife.bubbleapps.io/');;
+    }
+  }
+})
+
 const testScene = new Scene("testScene");
 stage.register(testScene);
 
@@ -119,15 +127,8 @@ bot.hears("users", async ctx => {
 })
 
 bot.catch((err) => console.log("ERROR", err));
-//Подписка тест
-// setInterval(function() {
-//   bot.telegram.sendMessage(650882495, 'Из интервала');
-// }, 10000);
-//ТЕСТ
+
 
 bot.command('clear', (ctx) => ctx.session.user = null)
 bot.launch()
 
-
-/// Пушить сообщения в бот
-// await fetch('https://api.telegram.org/botTOKEN/sendMessage?text=TEST&chat_id=123456';)

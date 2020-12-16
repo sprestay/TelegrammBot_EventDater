@@ -3,6 +3,7 @@ const menuModule = require('../menu');
 const Markup = require('telegraf/markup');
 const Extra = require('telegraf/extra');
 const Scene = require('telegraf/scenes/base');
+const chatModule = require('./chat');
 
 
 let users = [];
@@ -56,8 +57,11 @@ function pairScene(stage) {
         render_profile(ctx, users[index]);
     });
 
-    pairScene.action('chat', ctx => {
-        ctx.reply("In chat");
+    pairScene.action('chat', async ctx => {
+        await ctx.replyWithHTML("<b>Чат с " + users[index].name + "</b>", Extra.markup(Markup.keyboard([Markup.button("⬅ Назад ⬅")])));
+        ctx.session.selected_for_chat = users[index];
+        chatModule.getAllMessages(ctx);
+        await ctx.scene.enter('chatScene');
     });
 
     return pairScene;
